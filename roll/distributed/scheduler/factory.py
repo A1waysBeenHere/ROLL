@@ -309,4 +309,13 @@ class DataProtoFactory:
         if not batches:
             return DataProtoFactory.create_empty(tq_partition_id=tq_partition_id)
         
-        return DataProto.concat(batches, global_keys=global_keys)
+        merged = DataProto.concat(batches, global_keys=global_keys)
+        
+        if tq_partition_id is not None:
+            return DataProtoFactory._from_data_proto(
+                merged,
+                tq_partition_id=tq_partition_id,
+                size_threshold=DEFAULT_SIZE_THRESHOLD,
+            )
+        
+        return merged

@@ -505,7 +505,10 @@ class RLVRPipelineWithTQ(BasePipeline):
                             domain, reduce_metrics(domain_batch.meta_info.pop("metrics", {}))
                         )
                         domain_batches[domain] = domain_batch
-                    generate_output = DataProto.concat([domain_batch for domain_batch in domain_batches.values()])
+                    generate_output = DataProtoFactory.concat_batches(
+                        [domain_batch for domain_batch in domain_batches.values()],
+                        tq_partition_id=self.tq_partition_id,
+                    )
                     dump_rollout_to_specific_path(self.pipeline_config.rollout_dump_dir, global_step, generate_output, self.tokenizer)
                     generate_output.meta_info.pop("is_offload_states", None)
 
