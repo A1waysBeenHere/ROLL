@@ -8,7 +8,7 @@ from omegaconf import OmegaConf
 from roll.distributed.scheduler.initialize import init
 from roll.pipeline.rlvr.rlvr_config import RLVRConfig
 
-from roll.pipeline.rlvr.rlvr_pipeline import RLVRPipeline
+from roll.pipeline.rlvr.rlvr_pipeline_with_tq import RLVRPipelineWithTQ
 
 
 def main():
@@ -27,7 +27,7 @@ def main():
     ppo_config: RLVRConfig = from_dict(data_class=RLVRConfig, data=OmegaConf.to_container(cfg, resolve=True))
 
     init()
-    pipeline = RLVRPipeline(pipeline_config=ppo_config)
+    pipeline = RLVRPipelineWithTQ(pipeline_config=ppo_config, tq_partition_id="train_11")
 
     pipeline.run()
 

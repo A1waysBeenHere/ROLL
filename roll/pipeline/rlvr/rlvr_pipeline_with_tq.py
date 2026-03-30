@@ -651,7 +651,10 @@ class RLVRPipelineWithTQ(BasePipeline):
                     if self.pipeline_config.save_logging_board_dir:
                         self.save_metrics(domain_batch)
 
-                batch = DataProto.concat(batch_list)
+                batch = DataProtoFactory.concat_batches(
+                    batch_list,
+                    tq_partition_id=self.tq_partition_id,
+                )
 
                 if batch.batch["final_response_mask"].sum() == 0:
                     logger.info("Warning: final_response_mask.sum() == 0! Current step will be skipped.")

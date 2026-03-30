@@ -266,22 +266,36 @@ class DataProtoFactory:
     ) -> DataProto:
         """创建空的 DataProto 实例。
 
+        如果 tq_partition_id 不为 None，创建 LazyDataProto；
+        否则创建普通 DataProto。
+
         Args:
             tq_partition_id: TQ 分区 ID，如果为 None 则不使用 TQ
             meta_info: 元信息
 
         Returns:
-            空的 DataProto 实例
+            DataProto 或 LazyDataProto 实例
 
         Examples:
+            >>> # 创建普通 DataProto
+            >>> batch = DataProtoFactory.create_empty()
+
+            >>> # 创建 LazyDataProto
             >>> batch = DataProtoFactory.create_empty(
             ...     tq_partition_id="worker_0",
             ...     meta_info={"global_step": 1}
             ... )
         """
-        return DataProtoFactory.create(
-            None,
-            tq_partition_id=tq_partition_id,
+        if tq_partition_id is not None:
+            return LazyDataProto(
+                batch=None,
+                non_tensor_batch={},
+                meta_info=meta_info or {},
+            )
+
+        return DataProto(
+            batch=None,
+            non_tensor_batch={},
             meta_info=meta_info or {},
         )
 
