@@ -500,7 +500,7 @@ class RLVRPipelineWithTQ(BasePipeline):
                             data=batch, global_step=global_step, batch_size=self.domain_batch_size[domain]
                         )
                     for domain, scheduler_ref in scheduler_refs.items():
-                        domain_batch: DataProto = ray.get(scheduler_ref, timeout=self.pipeline_config.rpc_timeout)
+                        domain_batch = ray.get(scheduler_ref, timeout=self.pipeline_config.rpc_timeout)
                         metrics_mgr.add_domain_metrics(
                             domain, reduce_metrics(domain_batch.meta_info.pop("metrics", {}))
                         )
@@ -609,7 +609,7 @@ class RLVRPipelineWithTQ(BasePipeline):
                 metrics_mgr.add_metric("time/old_log_probs", cal_old_logpb_timer.last)
 
                 batch.reorder(indices=torch.argsort(batch.batch["prompt_id"]))
-                batch_grouped: Dict[str, DataProto] = batch.group_by("domain")
+                batch_grouped = batch.group_by("domain")
                 batch_list = []
                 for domain, domain_batch in batch_grouped.items():
                     with Timer(name="get_sample_level_mask", logger=None) as get_sample_level_mask_timer:
@@ -680,7 +680,7 @@ class RLVRPipelineWithTQ(BasePipeline):
                     actor_infer=self.actor_infer,
                     actor_train=self.actor_train,
                 )
-                batch_grouped: Dict[str, DataProto] = batch.group_by("domain")
+                batch_grouped = batch.group_by("domain")
                 metrics_mgr.add_domain_all_metrics(global_step, batch_grouped)
 
                 if self.pipeline_config.enable_old_logprobs_recompute:
@@ -712,7 +712,7 @@ class RLVRPipelineWithTQ(BasePipeline):
                                 )
                                 metrics_mgr.add_metrics(dynamic_batching_metrics)
                             actor_train_metrics_refs = self.actor_train.train_step(batch, blocking=False)
-                            actor_train_metrics: DataProto = DataProto.materialize_concat(
+                            actor_train_metrics = DataProto.materialize_concat(
                                 data_refs=actor_train_metrics_refs
                             )
                             metrics_mgr.add_reduced_metrics(actor_train_metrics.meta_info.pop("metrics", {}))
@@ -779,7 +779,7 @@ class RLVRPipelineWithTQ(BasePipeline):
                 "global_step": global_step,
             }
 
-            generate_output: DataProto = ray.get(
+            generate_output = ray.get(
                 self.val_generate_scheduler.get_batch.remote(data=batch, global_step=global_step, batch_size=len(self.val_dataset)),
                 timeout=self.pipeline_config.rpc_timeout,
             )
