@@ -15,6 +15,7 @@ import torch
 import asyncio
 
 from roll.distributed.scheduler.protocol import DataProto, ObjectRefWrap
+from roll.distributed.scheduler.lazy_protocol import LazyDataProto
 from roll.utils.logging import get_logger
 from roll.platforms import current_platform
 
@@ -120,6 +121,14 @@ def _dispatch_dp_mp_compute(cluster, _dispatch_first, *args, **kwargs):
             and isinstance(arg[local_dp_rank], DataProto)
             and not (rank_info.tp_rank == 0 and rank_info.cp_rank == 0 and rank_info.pp_rank == 0)
         ):
+            data = arg[local_dp_rank]
+            if isinstance(data, LazyDataProto):
+                kv_meta = object.__getattribute__(data, "_kv_meta")
+                if kv_meta is not None:
+                    return LazyDataProto.from_kv_batch_meta(
+                        kv_meta,
+                        fields=object.__getattribute__(data, "_tq_fields"),
+                    )
             return DataProto(batch=None, meta_info=arg[local_dp_rank].meta_info)
         return arg[local_dp_rank]
 
@@ -164,9 +173,20 @@ def collect_dp_mp_compute(cluster, output):
     if isinstance(output[0], list):
         return list(chain.from_iterable(output_in_dp))
     elif isinstance(output[0], DataProto):
+        all_lazy = all(
+            isinstance(d, LazyDataProto)
+            and object.__getattribute__(d, "_kv_meta") is not None
+            and not object.__getattribute__(d, "_materialized")
+            for d in output_in_dp
+        )
+        if all_lazy:
+            partition_ids = set(
+                object.__getattribute__(d, "_kv_meta").partition_id for d in output_in_dp
+            )
+            if len(partition_ids) == 1:
+                return LazyDataProto.concat(output_in_dp)
         return DataProto.concat(output_in_dp)
     elif isinstance(output[0], ray.ObjectRef):
-        # 处理block=False情况下，dp内的可能完成时间不一致问题
         output_in_dp = []
         for global_rank in range(cluster.world_size):
             local_rank_info = cluster.get_rank_info(rank=global_rank)
