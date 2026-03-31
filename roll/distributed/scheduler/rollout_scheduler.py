@@ -12,6 +12,7 @@ from tqdm import tqdm
 from roll.distributed.executor.cluster import Cluster
 from roll.distributed.scheduler.router import RouterManager
 from roll.distributed.scheduler.protocol import DataProto
+from roll.distributed.scheduler.lazy_protocol import LazyDataProto
 from roll.pipeline.agentic.agentic_config import EnvManagerConfig, EnvMonitorConfig
 from roll.distributed.scheduler.rollout_mock_mixin import RolloutMockMixin
 from roll.pipeline.agentic.agentic_config import EnvManagerConfig
@@ -632,9 +633,19 @@ class RolloutScheduler(RolloutMockMixin):
     async def get_batch(self, data: DataProto, batch_size):
         global_step = data.meta_info["global_step"]
 
+        input_is_lazy = isinstance(data, LazyDataProto)
+        tq_partition_id = None
+        if input_is_lazy:
+            kv_meta = data.kv_meta
+            if kv_meta is not None:
+                tq_partition_id = kv_meta.partition_id
+
         # MOCK MODE: Load pre-recorded data, skip rollout (from mixin)
         if self._should_load_mock(global_step):
-            return await self._load_mock_batch(global_step)
+            batch = await self._load_mock_batch(global_step)
+            if input_is_lazy and tq_partition_id is not None:
+                batch = LazyDataProto.from_data_proto(batch, tq_partition_id=tq_partition_id)
+            return batch
 
         # start env manager
         if self.rollout_task is None:
@@ -672,6 +683,9 @@ class RolloutScheduler(RolloutMockMixin):
 
         # DUMP MODE: Save merged batch (from mixin)
         await self._maybe_dump_batch(batch, global_step)
+
+        if input_is_lazy and tq_partition_id is not None:
+            batch = LazyDataProto.from_data_proto(batch, tq_partition_id=tq_partition_id)
 
         return batch
 

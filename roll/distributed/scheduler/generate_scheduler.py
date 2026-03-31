@@ -19,6 +19,8 @@ from transformers import set_seed
 from roll.distributed.executor.cluster import Cluster
 from roll.distributed.scheduler.router import RouterManager
 from roll.distributed.scheduler.protocol import DataProto, pad_dataproto_to_divisor, unpad_dataproto
+from roll.distributed.scheduler.lazy_protocol import LazyDataProto
+from roll.distributed.scheduler.factory import DataProtoFactory
 from roll.distributed.scheduler.reward_scheduler import RewardScheduler
 from roll.distributed.scheduler.rollout_mock_mixin import RolloutMockMixin
 from roll.models.model_providers import default_tokenizer_provider, default_processor_provider
@@ -603,12 +605,25 @@ class DynamicSamplingScheduler(RolloutMockMixin):
         return batch
 
     async def get_batch(self, data: DataProto, global_step: int, batch_size: int) -> DataProto:
+        input_is_lazy = isinstance(data, LazyDataProto)
+        tq_partition_id = None
+        if input_is_lazy:
+            kv_meta = data.kv_meta
+            if kv_meta is not None:
+                tq_partition_id = kv_meta.partition_id
+
         # MOCK MODE: Load pre-recorded data, skip rollout (from mixin)
         if self._should_load_mock(global_step):
-            return await self._load_mock_batch(global_step)
+            batch = await self._load_mock_batch(global_step)
+            if input_is_lazy and tq_partition_id is not None:
+                batch = LazyDataProto.from_data_proto(batch, tq_partition_id=tq_partition_id)
+            return batch
 
         if self.pipeline_config.generate_opt_level == 0:
-            return await self.get_batch_opt_level_0(data, batch_size)
+            batch = await self.get_batch_opt_level_0(data, batch_size)
+            if input_is_lazy and tq_partition_id is not None:
+                batch = LazyDataProto.from_data_proto(batch, tq_partition_id=tq_partition_id)
+            return batch
 
         num_return_sequences = data.meta_info["generation_config"]["num_return_sequences"]
         self.meta_info = copy.deepcopy(data.meta_info)
@@ -667,6 +682,9 @@ class DynamicSamplingScheduler(RolloutMockMixin):
 
         # DUMP MODE: Save merged batch (from mixin)
         await self._maybe_dump_batch(batch, global_step)
+
+        if input_is_lazy and tq_partition_id is not None:
+            batch = LazyDataProto.from_data_proto(batch, tq_partition_id=tq_partition_id)
 
         return batch
 
