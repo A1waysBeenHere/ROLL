@@ -504,7 +504,10 @@ class RLVRPipelineWithTQ(BasePipeline):
                         metrics_mgr.add_domain_metrics(
                             domain, reduce_metrics(domain_batch.meta_info.pop("metrics", {}))
                         )
-                        domain_batches[domain] = domain_batch
+                        domain_batches[domain] = DataProtoFactory.create(
+                            domain_batch,
+                            tq_partition_id=self.tq_partition_id,
+                        )
                     generate_output = DataProtoFactory.concat_batches(
                         [domain_batch for domain_batch in domain_batches.values()],
                         tq_partition_id=self.tq_partition_id,
