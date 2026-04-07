@@ -8,7 +8,7 @@ from omegaconf import OmegaConf
 from roll.distributed.scheduler.initialize import init
 from roll.pipeline.rlvr.rlvr_config import RLVRConfig
 
-from roll.pipeline.rlvr.rlvr_pipeline import RLVRPipeline
+from roll.pipeline.rlvr.rlvr_pipeline_tq import RLVRPipeline
 
 
 def main():
